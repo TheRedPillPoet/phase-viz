@@ -1,4 +1,11 @@
-import { ArrayBufferTarget, Muxer } from 'mp4-muxer';
+import {
+  BufferTarget,
+  EncodedAudioPacketSource,
+  EncodedPacket,
+  EncodedVideoPacketSource,
+  Mp4OutputFormat,
+  Output,
+} from 'mediabunny';
 
 interface WebCodecsExportOptions {
   canvas: HTMLCanvasElement;
@@ -15,6 +22,7 @@ const AUDIO_CHUNK_SIZE = 65536;
 const AAC_SAMPLES_PER_FRAME = 1024;
 const AUDIO_CHUNK_HEADROOM = 8;
 const MAX_VIDEO_QUEUE_SIZE = 96;
+const MAX_PENDING_PACKET_WRITES = 32;
 const PROGRESS_FRAME_INTERVAL = 45;
 
 export function canUseWebCodecsMP4() {
@@ -40,36 +48,70 @@ export async function exportToMP4WithWebCodecs({
   const width = makeEven(canvas.width || canvas.clientWidth);
   const height = makeEven(canvas.height || canvas.clientHeight);
   const totalFrames = Math.max(1, Math.ceil(duration * fps));
-  const target = new ArrayBufferTarget();
-  const muxer = new Muxer({
+  const expectedAudioChunks = getExpectedAudioChunks(audioBuffer);
+  const target = new BufferTarget();
+  const output = new Output({
+    format: new Mp4OutputFormat({ fastStart: 'reserve' }),
     target,
-    video: { codec: 'avc', width, height, frameRate: fps },
-    audio: {
-      codec: 'aac',
-      numberOfChannels: audioBuffer.numberOfChannels,
-      sampleRate: audioBuffer.sampleRate,
-    },
-    fastStart: {
-      expectedVideoChunks: totalFrames,
-      expectedAudioChunks: getExpectedAudioChunks(audioBuffer),
-    },
   });
+  const videoSource = new EncodedVideoPacketSource('avc');
+  const audioSource = new EncodedAudioPacketSource('aac');
+  output.addVideoTrack(videoSource, {
+    frameRate: fps,
+    maximumPacketCount: totalFrames,
+  });
+  output.addAudioTrack(audioSource, {
+    maximumPacketCount: expectedAudioChunks,
+  });
+  let outputCancelPromise: Promise<void> | null = null;
+  const cancelOutput = () => {
+    outputCancelPromise ??= output.cancel();
+    return outputCancelPromise;
+  };
 
   let videoChunkCount = 0;
   let audioChunkCount = 0;
   let encoderError: Error | null = null;
   const setEncoderError = (err: unknown) => {
-    encoderError = toError(err);
+    encoderError ??= toError(err);
   };
   const throwEncoderError = () => {
     if (encoderError) throw encoderError;
+  };
+  let pendingVideoWrites = 0;
+  let pendingAudioWrites = 0;
+  let videoWriteQueue = Promise.resolve();
+  let audioWriteQueue = Promise.resolve();
+  const enqueueVideoChunk = (chunk: EncodedVideoChunk, meta?: EncodedVideoChunkMetadata) => {
+    pendingVideoWrites++;
+    videoWriteQueue = videoWriteQueue
+      .then(() => {
+        throwEncoderError();
+        return videoSource.add(EncodedPacket.fromEncodedChunk(chunk), meta);
+      })
+      .catch(setEncoderError)
+      .finally(() => {
+        pendingVideoWrites--;
+      });
+  };
+  const enqueueAudioChunk = (chunk: EncodedAudioChunk, meta?: EncodedAudioChunkMetadata) => {
+    pendingAudioWrites++;
+    audioWriteQueue = audioWriteQueue
+      .then(() => {
+        throwEncoderError();
+        return audioSource.add(EncodedPacket.fromEncodedChunk(chunk), meta);
+      })
+      .catch(setEncoderError)
+      .finally(() => {
+        pendingAudioWrites--;
+      });
   };
 
   const videoEncoder = new VideoEncoder({
     output: (chunk, meta) => {
       if (encoderError) return;
       try {
-        muxer.addVideoChunk(chunk, meta);
+        enqueueVideoChunk(chunk, meta);
         videoChunkCount++;
       } catch (err) {
         setEncoderError(err);
@@ -81,7 +123,7 @@ export async function exportToMP4WithWebCodecs({
     output: (chunk, meta) => {
       if (encoderError) return;
       try {
-        muxer.addAudioChunk(chunk, meta);
+        enqueueAudioChunk(chunk, meta);
         audioChunkCount++;
       } catch (err) {
         setEncoderError(err);
@@ -93,11 +135,14 @@ export async function exportToMP4WithWebCodecs({
   const abortEncoding = () => {
     closeEncoder(videoEncoder);
     closeEncoder(audioEncoder);
+    void cancelOutput().catch(setEncoderError);
   };
   signal?.addEventListener('abort', abortEncoding, { once: true });
 
   try {
     await configureEncoders(videoEncoder, audioEncoder, width, height, fps, audioBuffer);
+    throwIfAborted(signal);
+    await output.start();
 
     let videoProgress = 0;
     let audioProgress = 0;
@@ -109,7 +154,11 @@ export async function exportToMP4WithWebCodecs({
       await encodeAudio(audioEncoder, audioBuffer, (p) => {
         audioProgress = p;
         updateEncodeProgress();
-      }, throwEncoderError, signal);
+      }, throwEncoderError, () => waitForPendingWrites(
+        () => pendingAudioWrites,
+        () => audioWriteQueue,
+        throwEncoderError,
+      ), signal);
       await withTimeout(audioEncoder.flush(), 30_000, 'Audio encoder flush timed out');
       audioProgress = 1;
       updateEncodeProgress();
@@ -142,6 +191,11 @@ export async function exportToMP4WithWebCodecs({
           signal,
         );
       }
+      await waitForPendingWrites(
+        () => pendingVideoWrites,
+        () => videoWriteQueue,
+        throwEncoderError,
+      );
 
       if (frame % PROGRESS_FRAME_INTERVAL === 0 || frame === totalFrames - 1) {
         videoProgress = (frame + 1) / totalFrames;
@@ -156,6 +210,7 @@ export async function exportToMP4WithWebCodecs({
     updateEncodeProgress();
     await audioPromise;
     if (audioPromiseError) throw audioPromiseError;
+    await Promise.all([videoWriteQueue, audioWriteQueue]);
     throwEncoderError();
 
     if (videoChunkCount < totalFrames) {
@@ -166,15 +221,25 @@ export async function exportToMP4WithWebCodecs({
     }
 
     throwIfAborted(signal);
-    muxer.finalize();
+    await output.finalize();
     onProgress(0.97);
 
-    if (target.buffer.byteLength < 1024) {
+    if (!target.buffer || target.buffer.byteLength < 1024) {
       throw new Error('Export finished without a valid MP4 payload');
     }
 
     onProgress(1);
     return new Blob([target.buffer], { type: 'video/mp4' });
+  } catch (err) {
+    if (output.state !== 'finalized' && output.state !== 'canceled') {
+      await cancelOutput().catch((cancelError: unknown) => {
+        console.error('Failed to cancel incomplete Mediabunny output:', cancelError);
+      });
+    }
+    if (signal?.aborted) {
+      throw new DOMException('Export was canceled', 'AbortError');
+    }
+    throw err;
   } finally {
     signal?.removeEventListener('abort', abortEncoding);
     closeEncoder(videoEncoder);
@@ -272,10 +337,21 @@ function getAvcLevelHex(width: number, height: number, fps: number) {
 
 function getExpectedAudioChunks(audioBuffer: AudioBuffer) {
   const inputChunks = Math.ceil(audioBuffer.length / AUDIO_CHUNK_SIZE);
-  // AAC encoders may emit one chunk per 1024-sample AAC frame, plus a few
-  // priming/drain chunks during flush. mp4-muxer expects an upper bound here.
+  // AAC encoders may emit one chunk per 1024-sample AAC frame, plus priming
+  // and drain chunks during flush. Mediabunny uses this as a Fast Start bound.
   const aacFrames = Math.ceil(audioBuffer.length / AAC_SAMPLES_PER_FRAME);
   return Math.max(inputChunks, aacFrames) + AUDIO_CHUNK_HEADROOM;
+}
+
+async function waitForPendingWrites(
+  getPendingCount: () => number,
+  getWriteQueue: () => Promise<void>,
+  throwEncoderError: () => void,
+) {
+  while (getPendingCount() > MAX_PENDING_PACKET_WRITES) {
+    await getWriteQueue();
+    throwEncoderError();
+  }
 }
 
 async function getSupportedVideoConfig(configs: VideoEncoderConfig[]) {
@@ -293,6 +369,7 @@ async function encodeAudio(
   buffer: AudioBuffer,
   onProgress: (progress: number) => void,
   throwEncoderError: () => void,
+  waitForAudioWrites: () => Promise<void>,
   signal?: AbortSignal,
 ) {
   const channels = buffer.numberOfChannels;
@@ -325,6 +402,7 @@ async function encodeAudio(
       await withTimeout(encoder.flush(), 30_000, 'Audio encoder stalled');
       throwEncoderError();
     }
+    await waitForAudioWrites();
     if (start % (AUDIO_CHUNK_SIZE * 16) === 0 || start + frames >= buffer.length) {
       onProgress((start + frames) / buffer.length);
       await yieldToBrowser();

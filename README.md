@@ -114,7 +114,7 @@ The UI now calls an `ExportEngine` wrapper while existing encoders remain in pla
 
 1. Visual modes provide an `ExportFrameRenderer`.
 2. `ExportEngine` applies the selected export preset and progress/status callbacks.
-3. The current renderer uses WebCodecs when compatible.
+3. The current renderer uses WebCodecs when compatible, with Mediabunny writing the encoded AVC/AAC streams into MP4.
 4. If fast export is unavailable or fails, the renderer retries with ffmpeg.wasm.
 5. The completed MP4 is generated as a browser blob and downloaded locally.
 
@@ -141,8 +141,10 @@ Exact codec, fullscreen, performance, and file-decoding support varies by browse
 - Web Audio API
 - Material UI and Emotion
 - Zustand
-- WebCodecs, mp4-muxer, and ffmpeg.wasm
+- WebCodecs, Mediabunny, and ffmpeg.wasm
 - Cloudflare Workers Static Assets
+
+Mediabunny is distributed under the [Mozilla Public License 2.0 (MPL-2.0)](https://www.mozilla.org/MPL/2.0/). It is used as an unmodified dependency; retain its license and copyright notices when redistributing it. See [third-party notices](THIRD_PARTY_NOTICES.md).
 
 ## Technical Write-up
 

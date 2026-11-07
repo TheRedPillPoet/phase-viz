@@ -1,16 +1,18 @@
 import * as THREE from 'three';
 
+type EffectUniform<T> = THREE.ShaderMaterial['uniforms'][string] & { value: T };
+
 export interface EffectUniforms {
-  uTime: THREE.IUniform<number>;
-  uRgbSplit: THREE.IUniform<number>;
-  uChromaticAberration: THREE.IUniform<number>;
-  uGlitchNoise: THREE.IUniform<number>;
-  uDatamosh: THREE.IUniform<number>;
-  uCameraShake: THREE.IUniform<number>;
-  tDiffuse: THREE.IUniform<THREE.Texture | null>;
-  tPrev: THREE.IUniform<THREE.Texture | null>;
-  uTransient: THREE.IUniform<number>;
-  uScanlines: THREE.IUniform<number>;
+  uTime: EffectUniform<number>;
+  uRgbSplit: EffectUniform<number>;
+  uChromaticAberration: EffectUniform<number>;
+  uGlitchNoise: EffectUniform<number>;
+  uDatamosh: EffectUniform<number>;
+  uCameraShake: EffectUniform<number>;
+  tDiffuse: EffectUniform<THREE.Texture | null>;
+  tPrev: EffectUniform<THREE.Texture | null>;
+  uTransient: EffectUniform<number>;
+  uScanlines: EffectUniform<number>;
 }
 
 export const POST_VERT = `

@@ -26,7 +26,7 @@ local media
 | Existing UI | `src/ui/` | Current production visualizers and controls |
 | Audio utilities | `src/audio/` | Offline analysis, FFT, waveform, BPM, transient, and stereo-width helpers |
 | Visual internals | `src/visual/` | Current Three.js scene, particles, presets, image FX, and effects |
-| Export internals | `src/export/` | Current WebCodecs, mp4-muxer, ffmpeg.wasm, recorder, and download utilities |
+| Export internals | `src/export/` | Current WebCodecs, Mediabunny MP4 muxing, ffmpeg.wasm fallback, recorder, and download utilities |
 
 ## State Slices
 
@@ -92,7 +92,7 @@ The goal is a future preset ecosystem where presets can be saved, shared, versio
 
 `ExportEngine` is the first orchestration wrapper around the existing export path. It currently accepts an existing `ExportFrameRenderer`, applies the selected preset, validates the output blob, and forwards progress/status callbacks.
 
-The lower-level encoders still live in `src/export/` and are re-exported through `src/engine/export/` so future callers have an engine-facing import path.
+The lower-level encoders still live in `src/export/`. The WebCodecs path encodes AVC video and AAC audio directly, then uses Mediabunny to mux the encoded packets into MP4; ffmpeg.wasm remains the fallback. These encoders are re-exported through `src/engine/export/` so future callers have an engine-facing import path.
 
 ## Incremental Migration Guidelines
 
