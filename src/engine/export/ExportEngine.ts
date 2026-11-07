@@ -5,12 +5,14 @@ export class ExportEngine {
   async render(job: ExportJob): Promise<ExportResult> {
     const { preset, renderer, duration, signal, onProgress, onStatus } = job;
     onStatus?.(`Preparing ${preset.label} export...`);
+    const dimensions = getExportDimensions(preset.width, preset.height, job.aspectRatio);
 
     const blob = await renderer({
       duration,
       fps: preset.fps,
-      width: preset.width,
-      height: preset.height,
+      width: dimensions.width,
+      height: dimensions.height,
+      aspectRatio: job.aspectRatio,
       signal,
       onProgress: createThrottledProgressReporter(onProgress),
       onStatus,
@@ -25,6 +27,15 @@ export class ExportEngine {
       fileName: getExportFileName(preset),
     };
   }
+}
+
+function getExportDimensions(width: number, height: number, aspectRatio: ExportJob['aspectRatio']) {
+  if (aspectRatio === '16:9') return { width, height };
+  if (aspectRatio === '9:16') {
+    return width >= height ? { width: height, height: width } : { width, height };
+  }
+  const side = Math.min(width, height);
+  return { width: side, height: side };
 }
 
 function createThrottledProgressReporter(onProgress: (progress: number) => void) {

@@ -1,7 +1,54 @@
-export type PresetId = 'minimal' | 'neon' | 'glitch' | 'organic';
+export type PresetId =
+  | 'minimal'
+  | 'neon'
+  | 'glitch'
+  | 'organic'
+  | 'matrix'
+  | 'void'
+  | 'haunted'
+  | 'awakening';
 export type MoodId = 'calm' | 'aggressive' | 'emotional' | 'dark' | 'bright';
 export type EnergyLevel = 'low' | 'medium' | 'high';
 export type DisplayMode = 'visualizer3d' | 'wave' | 'imageFx';
+export type AspectRatio = '16:9' | '9:16' | '1:1';
+export type SceneParameterKey =
+  | 'matrixDensity'
+  | 'matrixSpeed'
+  | 'matrixReactivity'
+  | 'voidHorizonGlow'
+  | 'voidRingVisibility'
+  | 'voidFovPulse'
+  | 'hauntedGrainOpacity'
+  | 'hauntedChromaticAberration'
+  | 'hauntedTrailDecay'
+  | 'awakeningLightLeak'
+  | 'awakeningRayDensity'
+  | 'awakeningExpansionScale';
+export type SceneParameterValues = Record<SceneParameterKey, number>;
+export interface CaptionCueStyle {
+  color?: string;
+  fontFamily?: string;
+  fontSizeRatio?: number;
+  positionX?: number;
+  positionY?: number;
+}
+export interface CaptionCueAnimation {
+  fadeInSeconds?: number;
+  fadeOutSeconds?: number;
+}
+export interface CaptionCue {
+  id: string;
+  text: string;
+  startTime: number;
+  endTime: number;
+  style?: CaptionCueStyle;
+  animation?: CaptionCueAnimation;
+}
+export const ASPECT_RATIO_VALUES: Record<AspectRatio, number> = {
+  '16:9': 16 / 9,
+  '9:16': 9 / 16,
+  '1:1': 1,
+};
 export type WaveVisualizerType = 'horizontal' | 'circular' | 'bars';
 export type WaveBackgroundMode = 'solid' | 'image';
 export type ImageFxPreset = 'clean' | 'glitch' | 'dreamy' | 'dark' | 'vhs';
@@ -159,6 +206,8 @@ export interface PlaybackSlice {
 
 export interface VisualSlice {
   displayMode: DisplayMode;
+  aspectRatio: AspectRatio;
+  sceneParameters: SceneParameterValues;
   preset: PresetId;
   presetRevision: number;
   effects: EffectSettings;
@@ -169,6 +218,8 @@ export interface VisualSlice {
   imageFxSettings: ImageFxSettings;
   imageFxLayerOrder: ImageFxLayerId[];
   setDisplayMode: (mode: DisplayMode) => void;
+  setAspectRatio: (aspectRatio: AspectRatio) => void;
+  setSceneParameter: (key: SceneParameterKey, value: number) => void;
   setPreset: (p: PresetId) => void;
   toggleEffect: (e: keyof EffectSettings) => void;
   setParticleCountScale: (value: number) => void;

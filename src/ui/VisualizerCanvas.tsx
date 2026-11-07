@@ -6,6 +6,7 @@ import { PRESETS, type PresetConfig } from '../visual/presets';
 import { type ExportFrameRenderer, FrameRecorder } from '../export/recorder';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
+import { setLiveCompositionAudioFrame } from '../visual/composition';
 
 interface Props {
   recorderRef: React.MutableRefObject<FrameRecorder | null>;
@@ -42,6 +43,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
     effects,
     particleSettings,
     visualizerSettings,
+    sceneParameters,
     visualizerLayerOrder,
     backgroundImageUrl,
     setFps,
@@ -69,9 +71,12 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
       scene.resize(w, h);
     };
     onResize();
+    const observer = new ResizeObserver(onResize);
+    if (canvas.parentElement) observer.observe(canvas.parentElement);
     window.addEventListener('resize', onResize);
 
     return () => {
+      observer.disconnect();
       window.removeEventListener('resize', onResize);
       cancelAnimationFrame(rafRef.current);
       scene.dispose();
@@ -251,6 +256,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
         high = clamp01(high * liveMultiplier);
         transient = clamp01(transient * liveMultiplier);
       }
+      setLiveCompositionAudioFrame({ time: renderTimestamp / 1000, bass, transient });
 
       const presetConfig = PRESETS[preset];
       scene.update(
@@ -276,15 +282,16 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
           scanlines: presetConfig.useScanlines,
         },
         effects.bloom ? presetConfig.bloomStrength : 0,
+        sceneParameters,
       );
       scene.render();
 
     },
-    [analysis, isPlaying, isExporting, preset, effects, setFps, setCurrentTime],
+    [analysis, isPlaying, isExporting, preset, effects, sceneParameters, setFps, setCurrentTime],
   );
 
   const renderExportFrames = useCallback<ExportFrameRenderer>(
-    async ({ duration, fps, width, height, onProgress, onStatus, signal }) => {
+    async ({ duration, fps, width, height, aspectRatio, onProgress, onStatus, signal }) => {
       const scene = sceneRef.current;
       const canvas = canvasRef.current;
       if (!scene || !analysis || !canvas) {
@@ -305,7 +312,16 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
         const drawFrame = (time: number, frame: number) => {
           scene.resize(exportWidth, exportHeight);
           sampleAnalysisFrameInto(analysis, time, exportFrame, exportLookup);
-          renderAnalyzedFrame(scene, analysis, preset, effects, exportFrame, frame === 0 ? 0 : 1 / fps);
+          renderAnalyzedFrame(
+            scene,
+            analysis,
+            preset,
+            effects,
+            sceneParameters,
+            exportFrame,
+            frame === 0 ? 0 : 1 / fps,
+          );
+          return { time, bass: exportFrame.bass, transient: exportFrame.transient };
         };
 
         let fastExportError: Error | null = null;
@@ -318,6 +334,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
               audioBuffer,
               duration,
               fps,
+              aspectRatio,
               renderFrame: drawFrame,
               onProgress,
               signal,
@@ -343,6 +360,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
             audioBuffer,
             duration,
             fps,
+            aspectRatio,
             renderFrame: drawFrame,
             onProgress,
             onStatus,
@@ -360,7 +378,7 @@ export default function VisualizerCanvas({ recorderRef, exportRendererRef }: Pro
         scene.setPixelRatio(previousPixelRatio);
       }
     },
-    [analysis, audioBuffer, effects, preset],
+    [analysis, audioBuffer, effects, preset, sceneParameters],
   );
 
   useEffect(() => {
@@ -472,6 +490,7 @@ function renderAnalyzedFrame(
   analysis: AudioAnalysis,
   preset: keyof typeof PRESETS,
   effects: ReturnType<typeof useStore.getState>['effects'],
+  sceneParameters: ReturnType<typeof useStore.getState>['sceneParameters'],
   data: AnalysisFrame,
   dt: number,
 ) {
@@ -499,6 +518,7 @@ function renderAnalyzedFrame(
       scanlines: presetConfig.useScanlines,
     },
     effects.bloom ? presetConfig.bloomStrength : 0,
+    sceneParameters,
   );
   scene.render();
 }

@@ -12,6 +12,8 @@ export const builtinPresets: PhaseVizPreset[] = [
     visual: {
       legacyPresetId: preset.id,
       geometryMode: preset.geometryMode,
+      ...(preset.backgroundEffect ? { backgroundEffect: preset.backgroundEffect } : {}),
+      ...(preset.postEffect ? { postEffect: preset.postEffect } : {}),
       particleCount: preset.particleCount,
       particleSize: preset.particleSize,
       noiseScale: preset.noiseScale,

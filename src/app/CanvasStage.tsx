@@ -1,4 +1,4 @@
-import React, { Suspense } from 'react';
+import React, { Suspense, useEffect, useRef, useState } from 'react';
 import FullscreenIcon from '@mui/icons-material/Fullscreen';
 import FullscreenExitIcon from '@mui/icons-material/FullscreenExit';
 import GraphicEqIcon from '@mui/icons-material/GraphicEq';
@@ -13,9 +13,12 @@ import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
+import { BRAND } from '../brand/tokens';
 import Timeline from '../ui/Timeline';
 import LiveVJHelp from '../ui/LiveVJHelp';
-import type { DisplayMode, LiveHelpLanguage } from '../store';
+import CompositionOverlay from '../ui/CompositionOverlay';
+import { ASPECT_RATIO_VALUES } from '../store';
+import type { AspectRatio, DisplayMode, LiveHelpLanguage } from '../store';
 import type { ExportFrameRenderer, FrameRecorder } from '../export/recorder';
 
 const VisualizerCanvas = React.lazy(() => import('../ui/VisualizerCanvas'));
@@ -26,6 +29,7 @@ interface CanvasStageProps {
   analysisReady: boolean;
   containerRef: React.MutableRefObject<HTMLDivElement | null>;
   displayMode: DisplayMode;
+  aspectRatio: AspectRatio;
   exportRendererRef: React.MutableRefObject<ExportFrameRenderer | null>;
   recorderRef: React.MutableRefObject<FrameRecorder | null>;
   isFullscreen: boolean;
@@ -48,6 +52,7 @@ export default function CanvasStage({
   analysisReady,
   containerRef,
   displayMode,
+  aspectRatio,
   exportRendererRef,
   recorderRef,
   isFullscreen,
@@ -65,6 +70,29 @@ export default function CanvasStage({
   onCloseLiveHelp,
   onLiveHelpLanguageChange,
 }: CanvasStageProps) {
+  const stageViewportRef = useRef<HTMLDivElement | null>(null);
+  const [viewportSize, setViewportSize] = useState({ width: 0, height: 0 });
+  const ratio = ASPECT_RATIO_VALUES[aspectRatio];
+  const fittedWidth = viewportSize.width && viewportSize.height
+    ? Math.floor(Math.min(viewportSize.width, viewportSize.height * ratio))
+    : undefined;
+  const fittedHeight = fittedWidth ? Math.floor(fittedWidth / ratio) : undefined;
+
+  useEffect(() => {
+    const viewport = stageViewportRef.current;
+    if (!viewport) return;
+    const updateSize = () => {
+      const { width, height } = viewport.getBoundingClientRect();
+      setViewportSize((current) => (
+        current.width === width && current.height === height ? current : { width, height }
+      ));
+    };
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(viewport);
+    updateSize();
+    return () => observer.disconnect();
+  }, []);
+
   return (
     <Box
       ref={containerRef}
@@ -76,16 +104,39 @@ export default function CanvasStage({
         flexDirection: 'column',
       }}
     >
-      <Box sx={{ flex: 1, position: 'relative' }}>
-        <Suspense fallback={<div style={{ width: '100%', height: '100%' }} />}>
-          {displayMode === 'imageFx' ? (
-            <ImageFXVisualizer exportRendererRef={exportRendererRef} />
-          ) : displayMode === 'wave' ? (
-            <WaveVisualizer exportRendererRef={exportRendererRef} />
-          ) : (
-            <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
-          )}
-        </Suspense>
+      <Box
+        ref={stageViewportRef}
+        sx={{
+          flex: 1,
+          minWidth: 0,
+          minHeight: 0,
+          position: 'relative',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        <Box
+          sx={{
+            width: fittedWidth ?? '100%',
+            height: fittedHeight ?? '100%',
+            position: 'relative',
+            flex: 'none',
+            overflow: 'hidden',
+          }}
+        >
+          <Suspense fallback={<div style={{ width: '100%', height: '100%' }} />}>
+            {displayMode === 'imageFx' ? (
+              <ImageFXVisualizer exportRendererRef={exportRendererRef} />
+            ) : displayMode === 'wave' ? (
+              <WaveVisualizer exportRendererRef={exportRendererRef} />
+            ) : (
+              <VisualizerCanvas recorderRef={recorderRef} exportRendererRef={exportRendererRef} />
+            )}
+          </Suspense>
+          <CompositionOverlay />
+        </Box>
 
         {showChrome && (
           <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
@@ -143,7 +194,7 @@ export default function CanvasStage({
               px: 1,
               py: 0.5,
               bgcolor: 'rgba(5,5,8,0.72)',
-              borderColor: 'rgba(0, 229, 238, 0.18)',
+              borderColor: BRAND.color.mistBorder,
               backdropFilter: 'blur(10px)',
             }}
           >

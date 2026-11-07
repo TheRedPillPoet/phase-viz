@@ -1,5 +1,8 @@
 import type { FFmpeg as FFmpegType } from '@ffmpeg/ffmpeg';
 import { FrameRecorder } from './recorder';
+import { drawCanvasWithBrandLogo, loadBrandLogo } from './brandLogo';
+import type { LogoAudioReactivity } from './brandLogo';
+import type { AspectRatio } from '../state';
 
 const FFMPEG_CORE_VERSION = '0.12.10';
 const FALLBACK_FRAME_JPEG_QUALITY = 0.86;
@@ -77,7 +80,8 @@ interface FFmpegFrameExportOptions {
   audioBuffer: AudioBuffer;
   duration: number;
   fps: number;
-  renderFrame: (time: number, frame: number) => void;
+  aspectRatio: AspectRatio;
+  renderFrame: (time: number, frame: number) => LogoAudioReactivity | undefined;
   onProgress: (progress: number) => void;
   onStatus?: (status: string) => void;
   signal?: AbortSignal;
@@ -157,11 +161,14 @@ export async function exportToMP4WithFFmpegFrames({
   audioBuffer,
   duration,
   fps,
+  aspectRatio,
   renderFrame,
   onProgress,
   onStatus,
   signal,
 }: FFmpegFrameExportOptions): Promise<Blob> {
+  const brandLogo = await loadBrandLogo(signal);
+  throwIfAborted(signal);
   const ffmpegPromise = getFFmpeg(signal);
   const exportId = `export-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const totalFrames = Math.max(1, Math.ceil(duration * fps));
@@ -191,8 +198,8 @@ export async function exportToMP4WithFFmpegFrames({
     for (let frame = 0; frame < totalFrames; frame++) {
       throwIfAborted(signal);
       const time = frame / fps;
-      renderFrame(time, frame);
-      const bytes = await captureCanvasJpeg(canvas, time * 1000, captureCanvas);
+      const audio = renderFrame(time, frame);
+      const bytes = await captureCanvasJpeg(canvas, time * 1000, captureCanvas, brandLogo, aspectRatio, audio);
       throwIfAborted(signal);
 
       const frameFile = frameFiles[frame];
@@ -346,6 +353,9 @@ function captureCanvasJpeg(
   sourceCanvas: HTMLCanvasElement,
   timeMs: number,
   captureCanvas: HTMLCanvasElement,
+  brandLogo: HTMLImageElement,
+  aspectRatio: AspectRatio,
+  audio?: LogoAudioReactivity,
 ): Promise<Uint8Array> {
   const width = sourceCanvas.width;
   const height = sourceCanvas.height;
@@ -366,7 +376,7 @@ function captureCanvasJpeg(
   }
 
   try {
-    ctx.drawImage(sourceCanvas, 0, 0, width, height);
+    drawCanvasWithBrandLogo(ctx, sourceCanvas, brandLogo, width, height, aspectRatio, audio);
   } catch (err) {
     return Promise.reject(new Error(`Could not capture export frame at ${Math.round(timeMs)}ms: ${getErrorMessage(err)}`));
   }

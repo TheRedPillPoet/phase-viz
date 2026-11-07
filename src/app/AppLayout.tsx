@@ -1,15 +1,17 @@
 import Box from '@mui/material/Box';
+import { BRAND } from '../brand/tokens';
 import CanvasStage from './CanvasStage';
 import Header from './Header';
 import LeftPanel from './LeftPanel';
 import RightPanel from './RightPanel';
-import type { AudioAnalysis, DisplayMode, LiveHelpLanguage } from '../store';
+import type { AspectRatio, AudioAnalysis, DisplayMode, LiveHelpLanguage } from '../store';
 import type { ExportFrameRenderer, FrameRecorder } from '../export/recorder';
 
 interface AppLayoutProps {
   analysis: AudioAnalysis | null;
   containerRef: React.MutableRefObject<HTMLDivElement | null>;
   displayMode: DisplayMode;
+  aspectRatio: AspectRatio;
   exportRendererRef: React.MutableRefObject<ExportFrameRenderer | null>;
   recorderRef: React.MutableRefObject<FrameRecorder | null>;
   isFullscreen: boolean;
@@ -34,6 +36,7 @@ export default function AppLayout({
   analysis,
   containerRef,
   displayMode,
+  aspectRatio,
   exportRendererRef,
   recorderRef,
   isFullscreen,
@@ -61,7 +64,7 @@ export default function AppLayout({
         height: '100vh',
         width: '100vw',
         overflow: 'hidden',
-        bgcolor: 'background.default',
+        background: `radial-gradient(ellipse at 50% 0%, ${BRAND.color.atmosphere}, transparent 42rem), ${BRAND.color.nearBlack}`,
       }}
     >
       {showChrome && <Header />}
@@ -73,6 +76,7 @@ export default function AppLayout({
           analysisReady={Boolean(analysis)}
           containerRef={containerRef}
           displayMode={displayMode}
+          aspectRatio={aspectRatio}
           exportRendererRef={exportRendererRef}
           recorderRef={recorderRef}
           isFullscreen={isFullscreen}

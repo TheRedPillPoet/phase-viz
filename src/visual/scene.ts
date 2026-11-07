@@ -1,7 +1,13 @@
 import * as THREE from 'three';
 import { ParticleSystem } from './particles';
+import { MatrixRainRenderer } from './matrixRain';
+import { VoidSceneRenderer } from './voidScene';
+import { HauntedSceneRenderer } from './hauntedScene';
+import { AwakeningSceneRenderer } from './awakeningScene';
 import type { PresetConfig } from './presets';
 import type { ParticleShape, VisualizerLayerId } from '../store';
+import type { SceneParameterValues } from '../state/types';
+import { DEFAULT_SCENE_PARAMETERS } from '../engine/parameterConfig';
 
 const DEFAULT_3D_LAYER_ORDER: VisualizerLayerId[] = ['background', 'particles', 'objects', 'waveform'];
 const BACKGROUND_PLANE_DISTANCE = 50;
@@ -18,6 +24,14 @@ export class VisualizerScene {
   private backgroundTexture: THREE.Texture | null = null;
   private backgroundPlane!: THREE.Mesh<THREE.PlaneGeometry, THREE.MeshBasicMaterial>;
   private backgroundPlaneMaterial!: THREE.MeshBasicMaterial;
+  private matrixRain: MatrixRainRenderer;
+  private voidScene: VoidSceneRenderer;
+  private hauntedScene: HauntedSceneRenderer;
+  private awakeningScene: AwakeningSceneRenderer;
+  private activePostEffect: 'hauntedScene' | 'awakeningScene' | null = null;
+  private bassEnergy = 0;
+  private highEnergy = 0;
+  private sceneParameters: SceneParameterValues = { ...DEFAULT_SCENE_PARAMETERS };
   private fallbackBackgroundColor = new THREE.Color(0x050508);
   private visualizerLayerOrder: VisualizerLayerId[] = [...DEFAULT_3D_LAYER_ORDER];
 
@@ -81,6 +95,15 @@ export class VisualizerScene {
     this.backgroundPlane.position.set(0, 0, -BACKGROUND_PLANE_DISTANCE);
     this.backgroundPlane.frustumCulled = false;
     this.camera.add(this.backgroundPlane);
+    this.matrixRain = new MatrixRainRenderer();
+    this.matrixRain.mesh.position.set(0, 0, -(BACKGROUND_PLANE_DISTANCE - 0.1));
+    this.camera.add(this.matrixRain.mesh);
+    this.voidScene = new VoidSceneRenderer();
+    this.voidScene.mesh.position.set(0, 0, -(BACKGROUND_PLANE_DISTANCE - 0.2));
+    this.camera.add(this.voidScene.mesh);
+    this.hauntedScene = new HauntedSceneRenderer(initialWidth, initialHeight);
+    this.awakeningScene = new AwakeningSceneRenderer();
+    this.awakeningScene.resize(initialWidth, initialHeight);
     this.updateBackgroundPlaneSize(initialWidth, initialHeight);
     this.applyLayerOrder();
 
@@ -106,6 +129,7 @@ export class VisualizerScene {
       uniforms: {
         tDiffuse: { value: null },
         tPrev: { value: null },
+        u_resolution: { value: new THREE.Vector2(w, h) },
         uTime: { value: 0 },
         uRgbSplit: { value: 0 },
         uChromaticAberration: { value: 0 },
@@ -121,6 +145,7 @@ export class VisualizerScene {
       fragmentShader: `
         uniform sampler2D tDiffuse;
         uniform sampler2D tPrev;
+        uniform vec2 u_resolution;
         uniform float uTime;
         uniform float uRgbSplit;
         uniform float uChromaticAberration;
@@ -135,7 +160,8 @@ export class VisualizerScene {
         }
 
         vec2 safeUv(vec2 uv) {
-          return clamp(uv, vec2(0.001), vec2(0.999));
+          vec2 halfTexel = 0.5 / max(u_resolution, vec2(1.0));
+          return clamp(uv, halfTexel, vec2(1.0) - halfTexel);
         }
 
         void main() {
@@ -296,47 +322,57 @@ export class VisualizerScene {
 
     this.renderer.setClearColor(preset.backgroundColor, 1);
     this.fallbackBackgroundColor = preset.backgroundColor;
-    if (!this.backgroundTexture) {
+    this.activePostEffect = preset.postEffect ?? null;
+    this.hauntedScene.reset();
+    const useMatrixRain = preset.backgroundEffect === 'matrixRain';
+    const useVoidScene = preset.backgroundEffect === 'voidScene';
+    const useShaderBackground = useMatrixRain || useVoidScene;
+    this.backgroundPlane.visible = !useShaderBackground;
+    this.matrixRain.mesh.visible = useMatrixRain;
+    this.voidScene.mesh.visible = useVoidScene;
+    if (!this.backgroundTexture && !useShaderBackground) {
       this.backgroundPlaneMaterial.map = null;
       this.backgroundPlaneMaterial.color.copy(preset.backgroundColor);
       this.backgroundPlaneMaterial.needsUpdate = true;
     }
 
-    if (preset.geometryMode === 'particles') {
-      this.particleSystem = new ParticleSystem(preset.particleCount);
-      this.particleSystem.setColors(preset.particleColor, preset.accentColor);
-      this.particleSystem.setParticleSize(preset.particleSize);
-      this.scene.add(this.particleSystem.points);
+    if (!useShaderBackground) {
+      if (preset.geometryMode === 'particles') {
+        this.particleSystem = new ParticleSystem(preset.particleCount);
+        this.particleSystem.setColors(preset.particleColor, preset.accentColor);
+        this.particleSystem.setParticleSize(preset.particleSize);
+        this.scene.add(this.particleSystem.points);
 
-      this.rectGroup = createRandomShapeCloud(
-        Math.max(80, Math.floor(preset.particleCount * 0.018)),
-        preset.particleColor,
-        preset.accentColor,
-      );
-      this.scene.add(this.rectGroup);
-    } else {
-      // Create particles behind geometry
-      this.particleSystem = new ParticleSystem(Math.floor(preset.particleCount * 0.3));
-      this.particleSystem.setColors(preset.particleColor, preset.accentColor);
-      this.particleSystem.setParticleSize(preset.particleSize * 0.7);
-      this.scene.add(this.particleSystem.points);
+        this.rectGroup = createRandomShapeCloud(
+          Math.max(80, Math.floor(preset.particleCount * 0.018)),
+          preset.particleColor,
+          preset.accentColor,
+        );
+        this.scene.add(this.rectGroup);
+      } else {
+        // Create particles behind geometry
+        this.particleSystem = new ParticleSystem(Math.floor(preset.particleCount * 0.3));
+        this.particleSystem.setColors(preset.particleColor, preset.accentColor);
+        this.particleSystem.setParticleSize(preset.particleSize * 0.7);
+        this.scene.add(this.particleSystem.points);
 
-      this.rectGroup = createRandomShapeCloud(
-        preset.geometryMode === 'sphere' ? 200 : preset.geometryMode === 'torus' ? 100 : 80,
-        preset.particleColor,
-        preset.accentColor,
-      );
-      this.scene.add(this.rectGroup);
-    }
+        this.rectGroup = createRandomShapeCloud(
+          preset.geometryMode === 'sphere' ? 200 : preset.geometryMode === 'torus' ? 100 : 80,
+          preset.particleColor,
+          preset.accentColor,
+        );
+        this.scene.add(this.rectGroup);
+      }
 
-    // Waveform rings
-    if (preset.geometryMode !== 'particles') {
-      this.waveformLine = createWaveformLine(preset.particleColor, 512);
-      this.waveformLineR = createWaveformLine(preset.accentColor, 512);
-      this.waveformLine.position.set(-1.5, 0, 0);
-      this.waveformLineR.position.set(1.5, 0, 0);
-      this.scene.add(this.waveformLine);
-      this.scene.add(this.waveformLineR);
+      // Waveform rings
+      if (preset.geometryMode !== 'particles') {
+        this.waveformLine = createWaveformLine(preset.particleColor, 512);
+        this.waveformLineR = createWaveformLine(preset.accentColor, 512);
+        this.waveformLine.position.set(-1.5, 0, 0);
+        this.waveformLineR.position.set(1.5, 0, 0);
+        this.scene.add(this.waveformLine);
+        this.scene.add(this.waveformLineR);
+      }
     }
 
     this.applyLayerOrder();
@@ -392,8 +428,27 @@ export class VisualizerScene {
       scanlines?: boolean;
     },
     bloomStrength: number,
+    sceneParameters: SceneParameterValues,
   ) {
     this.time += dt;
+    this.sceneParameters = sceneParameters;
+    this.bassEnergy = clamp01(bass);
+    this.highEnergy = clamp01(high);
+    this.matrixRain.update(
+      this.time,
+      bass,
+      sceneParameters.matrixDensity,
+      sceneParameters.matrixSpeed,
+      sceneParameters.matrixReactivity,
+    );
+    this.voidScene.update(
+      this.time,
+      bass,
+      (mid + high) * 0.5,
+      sceneParameters.voidHorizonGlow,
+      sceneParameters.voidRingVisibility,
+      sceneParameters.voidFovPulse,
+    );
     const bpmFactor = bpm / 120;
 
     if (this.particleSystem) {
@@ -495,6 +550,11 @@ export class VisualizerScene {
   }
 
   render() {
+    if (this.activePostEffect) {
+      this.renderSceneEffect();
+      return;
+    }
+
     if (!this.postEffectActive) {
       this.renderer.setRenderTarget(null);
       this.renderer.render(this.scene, this.camera);
@@ -542,6 +602,75 @@ export class VisualizerScene {
     this.wasDatamoshActive = true;
   }
 
+  private renderSceneEffect() {
+    if (!this.postEffectActive) {
+      this.renderer.setRenderTarget(this.rtA);
+      this.renderer.render(this.scene, this.camera);
+      const source = this.bloomStrength > 0.001
+        ? this.bloomPass.render(this.renderer, this.rtA, this.rtB).texture
+        : this.rtA.texture;
+      this.renderActiveSceneEffect(source);
+      this.wasDatamoshActive = false;
+      return;
+    }
+
+    this.renderer.setRenderTarget(this.rtA);
+    this.renderer.render(this.scene, this.camera);
+    const postInput = this.bloomStrength > 0.001
+      ? this.bloomPass.render(this.renderer, this.rtA, this.rtB)
+      : this.rtA;
+
+    this.postMaterial.uniforms.tDiffuse.value = postInput.texture;
+    this.postMaterial.uniforms.tPrev.value = this.rtPrevFrame.texture;
+
+    if (!this.datamoshAmount) {
+      this.renderer.setRenderTarget(this.rtFinalFrame);
+      this.renderer.render(this.postScene, this.postCamera);
+      this.renderActiveSceneEffect(this.rtFinalFrame.texture);
+      this.wasDatamoshActive = false;
+      return;
+    }
+
+    if (!this.wasDatamoshActive) {
+      const datamoshAmount = this.postMaterial.uniforms.uDatamosh.value;
+      this.postMaterial.uniforms.uDatamosh.value = 0;
+      this.renderer.setRenderTarget(this.rtPrevFrame);
+      this.renderer.render(this.postScene, this.postCamera);
+      this.postMaterial.uniforms.uDatamosh.value = datamoshAmount;
+    }
+    this.renderer.setRenderTarget(this.rtFinalFrame);
+    this.renderer.render(this.postScene, this.postCamera);
+    [this.rtPrevFrame, this.rtFinalFrame] = [this.rtFinalFrame, this.rtPrevFrame];
+    this.copyMaterial.map = this.rtPrevFrame.texture;
+    this.renderActiveSceneEffect(this.rtPrevFrame.texture);
+    this.wasDatamoshActive = true;
+  }
+
+  private renderActiveSceneEffect(source: THREE.Texture) {
+    if (this.activePostEffect === 'hauntedScene') {
+      this.hauntedScene.render(
+        this.renderer,
+        source,
+        this.time,
+        this.bassEnergy,
+        this.sceneParameters.hauntedGrainOpacity,
+        this.sceneParameters.hauntedChromaticAberration,
+        this.sceneParameters.hauntedTrailDecay,
+      );
+    } else if (this.activePostEffect === 'awakeningScene') {
+      this.awakeningScene.render(
+        this.renderer,
+        source,
+        this.time,
+        this.bassEnergy,
+        this.highEnergy,
+        this.sceneParameters.awakeningLightLeak,
+        this.sceneParameters.awakeningRayDensity,
+        this.sceneParameters.awakeningExpansionScale,
+      );
+    }
+  }
+
   resize(width: number, height: number, force = false) {
     const safeWidth = Math.max(1, Math.floor(width));
     const safeHeight = Math.max(1, Math.floor(height));
@@ -559,9 +688,19 @@ export class VisualizerScene {
     this.rtB.setSize(safeWidth, safeHeight);
     this.rtPrevFrame.setSize(safeWidth, safeHeight);
     this.rtFinalFrame.setSize(safeWidth, safeHeight);
+    this.postMaterial.uniforms.u_resolution.value.set(safeWidth, safeHeight);
     this.bloomPass.setSize(safeWidth, safeHeight);
 
     this.updateBackgroundPlaneSize(safeWidth, safeHeight);
+    const drawingBufferSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.voidScene.resize(
+      drawingBufferSize.x,
+      drawingBufferSize.y,
+      this.backgroundPlane.scale.x,
+      this.backgroundPlane.scale.y,
+    );
+    this.hauntedScene.resize(safeWidth, safeHeight);
+    this.awakeningScene.resize(safeWidth, safeHeight);
     this.updateBackgroundTextureCover();
   }
 
@@ -581,6 +720,7 @@ export class VisualizerScene {
     this.time = 0;
     this.cameraAngle = 0;
     this.wasDatamoshActive = false;
+    this.hauntedScene.reset();
     const previousTarget = this.renderer.getRenderTarget();
     this.renderer.setRenderTarget(this.rtPrevFrame);
     this.renderer.clear();
@@ -616,6 +756,8 @@ export class VisualizerScene {
 
   private applyLayerOrder() {
     this.backgroundPlane.renderOrder = this.getLayerRenderOrder('background');
+    this.matrixRain.mesh.renderOrder = this.getLayerRenderOrder('background');
+    this.voidScene.mesh.renderOrder = this.getLayerRenderOrder('background');
 
     if (this.particleSystem) {
       this.particleSystem.points.renderOrder = this.getLayerRenderOrder('particles');
@@ -650,6 +792,15 @@ export class VisualizerScene {
     const aspect = width / Math.max(1, height);
     const verticalSize = 2 * Math.tan(THREE.MathUtils.degToRad(this.camera.fov) / 2) * BACKGROUND_PLANE_DISTANCE;
     this.backgroundPlane.scale.set(verticalSize * aspect * 1.02, verticalSize * 1.02, 1);
+    this.matrixRain.mesh.scale.copy(this.backgroundPlane.scale);
+    const drawingBufferSize = this.renderer.getDrawingBufferSize(new THREE.Vector2());
+    this.matrixRain.resize(drawingBufferSize.x, drawingBufferSize.y);
+    this.voidScene.resize(
+      drawingBufferSize.x,
+      drawingBufferSize.y,
+      this.backgroundPlane.scale.x,
+      this.backgroundPlane.scale.y,
+    );
   }
 
   private updateBackgroundTextureCover() {
@@ -690,6 +841,10 @@ export class VisualizerScene {
     this.bloomPass.dispose();
     this.backgroundPlane.geometry.dispose();
     this.backgroundPlaneMaterial.dispose();
+    this.matrixRain.dispose();
+    this.voidScene.dispose();
+    this.hauntedScene.dispose();
+    this.awakeningScene.dispose();
     if (this.backgroundTexture) this.backgroundTexture.dispose();
     this.renderer.dispose();
   }

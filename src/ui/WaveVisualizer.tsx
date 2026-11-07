@@ -4,6 +4,7 @@ import { type AudioAnalysis, type WaveVisualizerSettings, useStore } from '../st
 import { type ExportFrameRenderer } from '../export/recorder';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
+import { setLiveCompositionAudioFrame } from '../visual/composition';
 
 interface Props {
   exportRendererRef: MutableRefObject<ExportFrameRenderer | null>;
@@ -63,8 +64,13 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
       resizeCanvasToParent(canvas);
     };
     onResize();
+    const observer = new ResizeObserver(onResize);
+    if (canvas.parentElement) observer.observe(canvas.parentElement);
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -163,6 +169,11 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
 
     if (frame) {
       const liveFrame = applyLiveWaveBoost(frame, getReusableWaveFrame(boostedFrameRef));
+      setLiveCompositionAudioFrame({
+        time: renderTimestamp / 1000,
+        bass: liveFrame.bass,
+        transient: liveFrame.transient,
+      });
       drawWaveFrame(
         canvas,
         liveFrame,
@@ -171,6 +182,7 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
         renderTimestamp / 1000,
       );
     } else {
+      setLiveCompositionAudioFrame({ time: renderTimestamp / 1000, bass: 0, transient: 0 });
       drawEmptyWaveCanvas(canvas, state.waveSettings, backgroundImageRef.current);
     }
   }, [setCurrentTime, setFps]);
@@ -189,7 +201,7 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
   }, [renderLiveFrame]);
 
   const renderExportFrames = useCallback<ExportFrameRenderer>(
-    async ({ duration, fps, width, height, onProgress, onStatus, signal }) => {
+    async ({ duration, fps, width, height, aspectRatio, onProgress, onStatus, signal }) => {
       const canvas = canvasRef.current;
       const {
         audioBuffer: exportAudioBuffer,
@@ -219,6 +231,7 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
       const drawFrame = (time: number, frame: number) => {
         const waveFrame = sampleAudioBufferFrameInto(exportAudioBuffer, exportAnalysis, time, exportFrame);
         drawWaveFrame(canvas, waveFrame, waveSettings, exportBackgroundImage, time + frame * 0.001);
+        return { time, bass: waveFrame.bass, transient: waveFrame.transient };
       };
 
       try {
@@ -231,6 +244,7 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
               audioBuffer: exportAudioBuffer,
               duration,
               fps,
+              aspectRatio,
               renderFrame: drawFrame,
               onProgress,
               signal,
@@ -251,6 +265,7 @@ export default function WaveVisualizer({ exportRendererRef }: Props) {
             audioBuffer: exportAudioBuffer,
             duration,
             fps,
+            aspectRatio,
             renderFrame: drawFrame,
             onProgress,
             onStatus,

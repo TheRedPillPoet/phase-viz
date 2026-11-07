@@ -30,6 +30,7 @@ export default function AppShell() {
     audioBuffer,
     analysis,
     displayMode,
+    aspectRatio,
     isExporting,
     isFullscreen,
     isLiveMode,
@@ -77,6 +78,7 @@ export default function AppShell() {
       const { blob, fileName } = await exportEngineRef.current.render({
         duration: analysis.duration,
         preset: selectedExportPreset,
+        aspectRatio,
         renderer: exportRendererRef.current,
         signal: abortController.signal,
         onProgress: setExportProgress,
@@ -208,6 +210,7 @@ export default function AppShell() {
         analysis={analysis}
         containerRef={containerRef}
         displayMode={displayMode}
+        aspectRatio={aspectRatio}
         exportRendererRef={exportRendererRef}
         recorderRef={recorderRef}
         isFullscreen={isFullscreen}

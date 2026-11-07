@@ -1,49 +1,64 @@
 import { createTheme } from '@mui/material/styles';
-import { cyan, teal, grey } from '@mui/material/colors';
+import { BRAND } from './brand/tokens';
 
 const theme = createTheme({
   palette: {
     mode: 'dark',
     primary: {
-      main: cyan[400],
-      light: cyan[200],
-      dark: cyan[700],
+      main: BRAND.color.crimson,
+      light: BRAND.color.crimsonLight,
+      dark: BRAND.color.crimsonDark,
+      contrastText: BRAND.color.white,
     },
     secondary: {
-      main: teal[400],
-      light: teal[200],
-      dark: teal[700],
+      main: BRAND.color.mistBlue,
+      light: BRAND.color.silverBlue,
+      dark: BRAND.color.mistDark,
+      contrastText: BRAND.color.nearBlack,
+    },
+    success: {
+      main: BRAND.color.digitalGreen,
     },
     background: {
-      default: '#050508',
-      paper: '#0d0d14',
+      default: BRAND.color.nearBlack,
+      paper: BRAND.color.charcoal,
     },
     text: {
-      primary: '#e8eaf6',
-      secondary: grey[400],
+      primary: BRAND.color.silver,
+      secondary: BRAND.color.silverMuted,
     },
-    divider: 'rgba(255,255,255,0.08)',
+    divider: BRAND.color.border,
   },
   shape: {
-    borderRadius: 8,
+    borderRadius: 4,
   },
   typography: {
-    fontFamily: '"Roboto", "Helvetica", "Arial", sans-serif',
-    h6: { fontWeight: 600, letterSpacing: '0.05em' },
-    caption: { letterSpacing: '0.08em' },
+    fontFamily: BRAND.typography.body,
+    h1: { fontFamily: BRAND.typography.literary },
+    h2: { fontFamily: BRAND.typography.literary },
+    h3: { fontFamily: BRAND.typography.literary },
+    h4: { fontFamily: BRAND.typography.literary },
+    h5: { fontFamily: BRAND.typography.literary },
+    h6: { fontFamily: BRAND.typography.literary, fontWeight: 500, letterSpacing: '0.025em' },
+    caption: { fontFamily: BRAND.typography.technical, letterSpacing: '0.08em' },
   },
   components: {
     MuiPaper: {
       styleOverrides: {
         root: {
           backgroundImage: 'none',
-          border: '1px solid rgba(255,255,255,0.06)',
+          border: `1px solid ${BRAND.color.border}`,
         },
       },
     },
     MuiSlider: {
       styleOverrides: {
-        root: { color: cyan[400] },
+        root: { color: BRAND.color.crimson },
+        thumb: {
+          '&:hover, &.Mui-focusVisible': {
+            boxShadow: `0 0 0 8px ${BRAND.color.crimsonWash}`,
+          },
+        },
       },
     },
     MuiChip: {
@@ -53,17 +68,46 @@ const theme = createTheme({
     },
     MuiButton: {
       styleOverrides: {
-        root: { textTransform: 'none', letterSpacing: '0.05em' },
+        root: {
+          textTransform: 'none',
+          letterSpacing: '0.04em',
+          '&:focus-visible': {
+            outline: `2px solid ${BRAND.color.silverBlue}`,
+            outlineOffset: 2,
+          },
+        },
       },
     },
     MuiToggleButton: {
       styleOverrides: {
         root: {
           textTransform: 'none',
-          borderColor: 'rgba(255,255,255,0.1)',
+          borderColor: BRAND.color.border,
           '&.Mui-selected': {
-            borderColor: cyan[400],
+            color: BRAND.color.silver,
+            borderColor: BRAND.color.crimson,
+            backgroundColor: BRAND.color.crimsonWash,
           },
+          '&.Mui-selected:hover': {
+            backgroundColor: BRAND.color.crimsonWash,
+          },
+          '&:focus-visible': {
+            outline: `2px solid ${BRAND.color.silverBlue}`,
+            outlineOffset: 2,
+          },
+        },
+      },
+    },
+    MuiCssBaseline: {
+      styleOverrides: {
+        body: {
+          color: BRAND.color.silver,
+          backgroundColor: BRAND.color.nearBlack,
+          fontFamily: BRAND.typography.body,
+        },
+        '::selection': {
+          color: BRAND.color.silver,
+          backgroundColor: BRAND.color.crimson,
         },
       },
     },

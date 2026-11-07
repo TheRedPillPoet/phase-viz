@@ -4,9 +4,12 @@ import {
   DEFAULT_IMAGE_FX_LAYER_ORDER,
   DEFAULT_VISUALIZER_LAYER_ORDER,
 } from './types';
+import { DEFAULT_SCENE_PARAMETERS } from '../engine/parameterConfig';
 
 export const createVisualSlice: StateCreator<AppState, [], [], VisualSlice> = (set) => ({
   displayMode: 'visualizer3d',
+  aspectRatio: '16:9',
+  sceneParameters: { ...DEFAULT_SCENE_PARAMETERS },
   preset: 'neon',
   presetRevision: 0,
   effects: {
@@ -46,6 +49,11 @@ export const createVisualSlice: StateCreator<AppState, [], [], VisualSlice> = (s
   },
   imageFxLayerOrder: DEFAULT_IMAGE_FX_LAYER_ORDER,
   setDisplayMode: (displayMode) => set({ displayMode }),
+  setAspectRatio: (aspectRatio) => set({ aspectRatio }),
+  setSceneParameter: (key, value) =>
+    set((state) => ({
+      sceneParameters: { ...state.sceneParameters, [key]: value },
+    })),
   setPreset: (preset) => set((s) => ({ preset, presetRevision: s.presetRevision + 1 })),
   toggleEffect: (e) =>
     set((s) => ({ effects: { ...s.effects, [e]: !s.effects[e] } })),

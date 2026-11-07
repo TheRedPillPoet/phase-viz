@@ -4,6 +4,7 @@ import { type AudioAnalysis, type EffectSettings, type ImageFxLayerId, type Imag
 import { type ExportFrameRenderer } from '../export/recorder';
 import { canUseWebCodecsMP4, exportToMP4WithWebCodecs } from '../export/webcodecs';
 import { exportToMP4WithFFmpegFrames } from '../export/ffmpeg';
+import { setLiveCompositionAudioFrame } from '../visual/composition';
 
 interface Props {
   exportRendererRef: MutableRefObject<ExportFrameRenderer | null>;
@@ -73,8 +74,13 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
       resizeCanvasToParent(canvas);
     };
     onResize();
+    const observer = new ResizeObserver(onResize);
+    if (canvas.parentElement) observer.observe(canvas.parentElement);
     window.addEventListener('resize', onResize);
-    return () => window.removeEventListener('resize', onResize);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', onResize);
+    };
   }, []);
 
   useEffect(() => {
@@ -170,9 +176,18 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
       frame = sampleAudioBufferFrameInto(state.audioBuffer, state.analysis, state.currentTime, reusableFrame);
     }
 
+    const displayedFrame = applyLiveImageFxBoost(
+      frame ?? EMPTY_IMAGE_FX_FRAME,
+      getReusableImageFxFrame(boostedFrameRef),
+    );
+    setLiveCompositionAudioFrame({
+      time: renderTimestamp / 1000,
+      bass: displayedFrame.bass,
+      transient: displayedFrame.transient,
+    });
     drawImageFxFrame(
       canvas,
-      applyLiveImageFxBoost(frame ?? EMPTY_IMAGE_FX_FRAME, getReusableImageFxFrame(boostedFrameRef)),
+      displayedFrame,
       state.imageFxSettings,
       state.effects,
       state.imageFxLayerOrder,
@@ -195,7 +210,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
   }, [renderLiveFrame]);
 
   const renderExportFrames = useCallback<ExportFrameRenderer>(
-    async ({ duration, fps, width, height, onProgress, onStatus, signal }) => {
+    async ({ duration, fps, width, height, aspectRatio, onProgress, onStatus, signal }) => {
       const canvas = canvasRef.current;
       const {
         audioBuffer: exportAudioBuffer,
@@ -242,6 +257,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
           postCanvas,
           feedbackCanvas,
         );
+        return { time, bass: fxFrame.bass, transient: fxFrame.transient };
       };
 
       try {
@@ -254,6 +270,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
               audioBuffer: exportAudioBuffer,
               duration,
               fps,
+              aspectRatio,
               renderFrame: drawFrame,
               onProgress,
               signal,
@@ -275,6 +292,7 @@ export default function ImageFXVisualizer({ exportRendererRef }: Props) {
             audioBuffer: exportAudioBuffer,
             duration,
             fps,
+            aspectRatio,
             renderFrame: drawFrame,
             onProgress,
             onStatus,

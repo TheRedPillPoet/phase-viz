@@ -5,6 +5,7 @@ import Paper from '@mui/material/Paper';
 import ToggleButton from '@mui/material/ToggleButton';
 import ToggleButtonGroup from '@mui/material/ToggleButtonGroup';
 import Typography from '@mui/material/Typography';
+import { BRAND } from '../brand/tokens';
 import type { LiveHelpLanguage } from '../store';
 
 interface Props {
@@ -77,7 +78,7 @@ export default function LiveVJHelp({ language, onLanguageChange, onClose }: Prop
           borderRadius: 2,
           p: 2,
           bgcolor: 'rgba(5, 5, 8, 0.82)',
-          borderColor: 'rgba(0, 229, 238, 0.24)',
+          borderColor: BRAND.color.mistBorder,
           backdropFilter: 'blur(14px)',
           pointerEvents: 'auto',
         }}

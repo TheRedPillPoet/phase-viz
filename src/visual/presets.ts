@@ -1,6 +1,15 @@
 import * as THREE from 'three';
+import { BRAND } from '../brand/tokens';
 
-export type PresetId = 'minimal' | 'neon' | 'glitch' | 'organic';
+export type PresetId =
+  | 'minimal'
+  | 'neon'
+  | 'glitch'
+  | 'organic'
+  | 'matrix'
+  | 'void'
+  | 'haunted'
+  | 'awakening';
 
 export interface PresetConfig {
   id: PresetId;
@@ -19,6 +28,8 @@ export interface PresetConfig {
   geometryMode: 'particles' | 'sphere' | 'torus' | 'wave';
   noiseScale: number;
   reactionSpeed: number;
+  backgroundEffect?: 'matrixRain' | 'voidScene';
+  postEffect?: 'hauntedScene' | 'awakeningScene';
 }
 
 export const PRESETS: Record<PresetId, PresetConfig> = {
@@ -60,7 +71,7 @@ export const PRESETS: Record<PresetId, PresetConfig> = {
   },
   glitch: {
     id: 'glitch',
-    label: 'Glitch Industrial',
+    label: 'Digital Glitch',
     description: 'Digital noise, RGB split',
     particleCount: 24000,
     backgroundColor: new THREE.Color(0x000000),
@@ -93,5 +104,81 @@ export const PRESETS: Record<PresetId, PresetConfig> = {
     geometryMode: 'torus',
     noiseScale: 0.3,
     reactionSpeed: 0.15,
+  },
+  matrix: {
+    id: 'matrix',
+    label: 'Matrix Rain',
+    description: 'Procedural digital glyph streams',
+    particleCount: 0,
+    backgroundColor: new THREE.Color(BRAND.color.deepBlack),
+    particleColor: new THREE.Color(BRAND.color.digitalGreen),
+    accentColor: new THREE.Color(BRAND.color.silverBlue),
+    bloomStrength: 0,
+    bloomRadius: 0,
+    useGlitch: false,
+    useRgbSplit: false,
+    useScanlines: false,
+    particleSize: 0.3,
+    geometryMode: 'particles',
+    noiseScale: 0,
+    reactionSpeed: 1,
+    backgroundEffect: 'matrixRain',
+  },
+  void: {
+    id: 'void',
+    label: 'Void',
+    description: 'Deep space with a restrained wireframe focal form',
+    particleCount: 0,
+    backgroundColor: new THREE.Color(BRAND.color.deepBlack),
+    particleColor: new THREE.Color(BRAND.color.silverBlue),
+    accentColor: new THREE.Color(BRAND.color.mistBlue),
+    bloomStrength: 0,
+    bloomRadius: 0,
+    useGlitch: false,
+    useRgbSplit: false,
+    useScanlines: false,
+    particleSize: 0.3,
+    geometryMode: 'particles',
+    noiseScale: 0,
+    reactionSpeed: 0.15,
+    backgroundEffect: 'voidScene',
+  },
+  haunted: {
+    id: 'haunted',
+    label: 'Haunted',
+    description: 'Spectral grain, ghost trails, and low-frequency distortion',
+    particleCount: 9000,
+    backgroundColor: new THREE.Color(BRAND.color.deepBlack),
+    particleColor: new THREE.Color(BRAND.color.mistBlue),
+    accentColor: new THREE.Color(BRAND.color.crimson),
+    bloomStrength: 0,
+    bloomRadius: 0,
+    useGlitch: false,
+    useRgbSplit: false,
+    useScanlines: false,
+    particleSize: 0.3,
+    geometryMode: 'sphere',
+    noiseScale: 0.5,
+    reactionSpeed: 0.3,
+    postEffect: 'hauntedScene',
+  },
+  awakening: {
+    id: 'awakening',
+    label: 'Awakening',
+    description: 'Ascendant light, expanding forms, and reactive rays',
+    particleCount: 14000,
+    backgroundColor: new THREE.Color(BRAND.color.nearBlack),
+    particleColor: new THREE.Color(BRAND.color.silverBlue),
+    accentColor: new THREE.Color(BRAND.color.crimsonLight),
+    bloomStrength: 0,
+    bloomRadius: 0,
+    useGlitch: false,
+    useRgbSplit: false,
+    useScanlines: false,
+    particleSize: 0.32,
+    geometryMode: 'sphere',
+    noiseScale: 0.35,
+    reactionSpeed: 0.65,
+    postEffect: 'awakeningScene',
   },
 };

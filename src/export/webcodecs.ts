@@ -6,13 +6,17 @@ import {
   Mp4OutputFormat,
   Output,
 } from 'mediabunny';
+import { drawCanvasWithBrandLogo, loadBrandLogo } from './brandLogo';
+import type { LogoAudioReactivity } from './brandLogo';
+import type { AspectRatio } from '../state';
 
 interface WebCodecsExportOptions {
   canvas: HTMLCanvasElement;
   audioBuffer: AudioBuffer;
   duration: number;
   fps: number;
-  renderFrame: (time: number, frame: number) => void;
+  aspectRatio: AspectRatio;
+  renderFrame: (time: number, frame: number) => LogoAudioReactivity | undefined;
   onProgress: (progress: number) => void;
   signal?: AbortSignal;
 }
@@ -39,14 +43,24 @@ export async function exportToMP4WithWebCodecs({
   audioBuffer,
   duration,
   fps,
+  aspectRatio,
   renderFrame,
   onProgress,
   signal,
 }: WebCodecsExportOptions): Promise<Blob> {
   throwIfAborted(signal);
+  const brandLogo = await loadBrandLogo(signal);
+  throwIfAborted(signal);
 
   const width = makeEven(canvas.width || canvas.clientWidth);
   const height = makeEven(canvas.height || canvas.clientHeight);
+  const exportCanvas = document.createElement('canvas');
+  exportCanvas.width = width;
+  exportCanvas.height = height;
+  const exportContext = exportCanvas.getContext('2d', { alpha: false });
+  if (!exportContext) {
+    throw new Error('Could not create export canvas for the brand logo');
+  }
   const totalFrames = Math.max(1, Math.ceil(duration * fps));
   const expectedAudioChunks = getExpectedAudioChunks(audioBuffer);
   const target = new BufferTarget();
@@ -171,9 +185,10 @@ export async function exportToMP4WithWebCodecs({
       throwIfAborted(signal);
       throwEncoderError();
       const time = frame / fps;
-      renderFrame(time, frame);
+      const audio = renderFrame(time, frame);
+      drawCanvasWithBrandLogo(exportContext, canvas, brandLogo, width, height, aspectRatio, audio);
 
-      const videoFrame = new VideoFrame(canvas, {
+      const videoFrame = new VideoFrame(exportCanvas, {
         visibleRect: { x: 0, y: 0, width, height },
         displayWidth: width,
         displayHeight: height,

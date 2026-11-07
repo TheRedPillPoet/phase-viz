@@ -16,6 +16,7 @@ import IconButton from '@mui/material/IconButton';
 import { EXPORT_PRESETS, useStore } from '../store';
 import type {
   DisplayMode,
+  AspectRatio,
   EffectSettings,
   ExportPresetId,
   ImageFxLayerId,
@@ -35,6 +36,8 @@ import CancelIcon from '@mui/icons-material/Cancel';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
 import KeyboardArrowUpIcon from '@mui/icons-material/KeyboardArrowUp';
 import RestartAltIcon from '@mui/icons-material/RestartAlt';
+import { BRAND } from '../brand/tokens';
+import { SCENE_PARAMETER_CONFIG } from '../engine/parameterConfig';
 
 const EFFECT_LABELS: { key: keyof EffectSettings; label: string }[] = [
   { key: 'chromaticAberration', label: 'Chromatic' },
@@ -100,7 +103,9 @@ interface ControlsProps {
 export default function Controls({ onExport, onCancelExport }: ControlsProps) {
   const {
     preset,
+    sceneParameters,
     displayMode,
+    aspectRatio,
     effects,
     analysis,
     isExporting,
@@ -122,7 +127,9 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
     liveIntensity,
     exportPreset,
     setDisplayMode,
+    setAspectRatio,
     setPreset,
+    setSceneParameter,
     toggleEffect,
     setParticleCountScale,
     setParticleSizeScale,
@@ -209,6 +216,30 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
         >
           {isLiveMode ? 'Exit Live / VJ' : 'Enter Live / VJ'}
         </Button>
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mt: 1, mb: 0.6 }}
+        >
+          Stage Aspect
+        </Typography>
+        <ToggleButtonGroup
+          value={aspectRatio}
+          exclusive
+          onChange={(_, value) => value && setAspectRatio(value as AspectRatio)}
+          fullWidth
+          size="small"
+          disabled={isExporting}
+          aria-label="Stage aspect ratio"
+        >
+          {(['16:9', '9:16', '1:1'] as const).map((ratio) => (
+            <ToggleButton key={ratio} value={ratio} sx={{ px: 0.5, py: 0.55 }}>
+              <Typography variant="caption" sx={{ fontSize: 10, fontWeight: 700 }}>
+                {ratio}
+              </Typography>
+            </ToggleButton>
+          ))}
+        </ToggleButtonGroup>
         {isLiveMode && (
           <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 0.75 }}>
             <Button
@@ -291,6 +322,31 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
               ))}
             </ToggleButtonGroup>
           </Paper>
+
+          {SCENE_PARAMETER_CONFIG[preset] && (
+            <Paper elevation={0} sx={{ p: 1.5 }}>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}
+              >
+                Scene Parameters
+              </Typography>
+              {SCENE_PARAMETER_CONFIG[preset]?.map((parameter) => (
+                <ControlSlider
+                  key={parameter.key}
+                  label={parameter.label}
+                  value={sceneParameters[parameter.key]}
+                  valueLabel={sceneParameters[parameter.key].toFixed(parameter.precision)}
+                  min={parameter.min}
+                  max={parameter.max}
+                  step={parameter.step}
+                  disabled={isExporting}
+                  onChange={(value) => setSceneParameter(parameter.key, value)}
+                />
+              ))}
+            </Paper>
+          )}
 
           <Paper elevation={0} sx={{ p: 1.5 }}>
             <Typography variant="caption" color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: 1, display: 'block', mb: 1 }}>
@@ -594,7 +650,7 @@ export default function Controls({ onExport, onCancelExport }: ControlsProps) {
                 onClick={onExport}
                 sx={{
                   background: analysis
-                    ? 'linear-gradient(135deg, #00bcd4 0%, #009688 100%)'
+                    ? `linear-gradient(135deg, ${BRAND.color.crimsonLight} 0%, ${BRAND.color.crimson} 100%)`
                     : undefined,
                   fontWeight: 600,
                   py: 1,
@@ -688,7 +744,7 @@ function LayerOrderControls<TLayer extends string>({
                 minHeight: 26,
                 px: 0.5,
                 borderRadius: 1,
-                bgcolor: isHighlighted ? 'rgba(0, 229, 238, 0.08)' : 'rgba(255,255,255,0.035)',
+                bgcolor: isHighlighted ? BRAND.color.mistWash : 'rgba(255,255,255,0.035)',
               }}
             >
               <Typography variant="caption" color="text.secondary" sx={{ fontSize: 9, fontWeight: 700 }}>
@@ -754,6 +810,7 @@ function ControlSlider({
       </Box>
       <Slider
         size="small"
+        aria-label={label}
         value={value}
         min={min}
         max={max}

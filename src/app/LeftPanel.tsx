@@ -1,6 +1,7 @@
 import Box from '@mui/material/Box';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
+import { BRAND } from '../brand/tokens';
 import Uploader from '../ui/Uploader';
 import type { AudioAnalysis } from '../store';
 
@@ -60,8 +61,8 @@ function WaveformMini({ waveform }: { waveform: Float32Array }) {
     <svg width={width} height={height} style={{ display: 'block' }}>
       <path
         d={`${pathTop} L${(points.length - 1) * step},${height / 2} ${pathBottom} Z`}
-        fill="rgba(0,188,212,0.25)"
-        stroke="rgba(0,188,212,0.6)"
+        fill={BRAND.color.mistWash}
+        stroke={BRAND.color.mistBlue}
         strokeWidth="0.5"
       />
     </svg>

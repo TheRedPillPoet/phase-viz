@@ -6,6 +6,7 @@ import CircularProgress from '@mui/material/CircularProgress';
 import IconButton from '@mui/material/IconButton';
 import Tooltip from '@mui/material/Tooltip';
 import { useStore } from '../store';
+import { BRAND } from '../brand/tokens';
 import { analyzeAudio } from '../audio/analyze';
 import AudioFileIcon from '@mui/icons-material/AudioFile';
 import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
@@ -99,10 +100,10 @@ export default function Uploader() {
           borderRadius: 2,
           cursor: 'pointer',
           transition: 'border-color 0.2s, background-color 0.2s',
-          bgcolor: dragOver ? 'rgba(0,188,212,0.05)' : 'background.paper',
+          bgcolor: dragOver ? BRAND.color.crimsonWash : 'background.paper',
           '&:hover': {
             borderColor: 'primary.main',
-            bgcolor: 'rgba(0,188,212,0.04)',
+            bgcolor: BRAND.color.crimsonWash,
           },
         }}
         onDragOver={(e) => {
@@ -150,10 +151,10 @@ export default function Uploader() {
           borderRadius: 2,
           cursor: 'pointer',
           transition: 'border-color 0.2s, background-color 0.2s',
-          bgcolor: imageDragOver ? 'rgba(0,150,136,0.05)' : 'background.paper',
+          bgcolor: imageDragOver ? BRAND.color.mistWash : 'background.paper',
           '&:hover': {
             borderColor: 'secondary.main',
-            bgcolor: 'rgba(0,150,136,0.04)',
+            bgcolor: BRAND.color.mistWash,
           },
         }}
         onDragOver={(e) => {
