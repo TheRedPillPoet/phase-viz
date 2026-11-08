@@ -6,10 +6,14 @@ export class ParticleSystem {
   material: THREE.ShaderMaterial;
   points: THREE.Points;
   private basePositions: Float32Array;
+  private particleCount: number;
+  private density = 1;
+  private hauntedFlow = 0;
 
   constructor(count: number) {
     this.geometry = new THREE.BufferGeometry();
     this.basePositions = new Float32Array(count * 3);
+    this.particleCount = count;
 
     // Sphere distribution
     for (let i = 0; i < count; i++) {
@@ -41,6 +45,7 @@ export class ParticleSystem {
         uMid: { value: 0 },
         uHigh: { value: 0 },
         uTransient: { value: 0 },
+        uHauntedFlow: { value: 0 },
         uColorA: { value: new THREE.Color(0x00ffff) },
         uColorB: { value: new THREE.Color(0xff00ff) },
         uParticleSize: { value: 2.0 },
@@ -54,12 +59,24 @@ export class ParticleSystem {
         uniform float uMid;
         uniform float uHigh;
         uniform float uTransient;
+        uniform float uHauntedFlow;
         uniform float uParticleSize;
         varying float vBrightness;
         varying vec3 vPosition;
 
         void main() {
           vec3 pos = position;
+          float driftSpeed = 0.12 + fract(aPhase * 0.159) * 0.22;
+          float driftTime = uTime * driftSpeed + aPhase;
+          float rotation = uTime * driftSpeed * uHauntedFlow;
+          float rotationCos = cos(rotation);
+          float rotationSin = sin(rotation);
+          pos.xz = mat2(rotationCos, -rotationSin, rotationSin, rotationCos) * pos.xz;
+          pos += vec3(
+            sin(driftTime + pos.z * 1.7),
+            cos(driftTime * 0.83 + pos.x * 1.5),
+            sin(driftTime * 0.71 + pos.y * 1.3)
+          ) * (0.18 * uHauntedFlow);
           float noise = sin(pos.x * 3.0 + uTime + aPhase) * cos(pos.z * 2.0 + uTime * 0.7);
 
           // Bass causes radial expansion
@@ -161,6 +178,20 @@ export class ParticleSystem {
 
   setParticleSize(size: number) {
     this.material.uniforms.uParticleSize.value = size;
+  }
+
+  setDensity(density: number) {
+    const nextDensity = THREE.MathUtils.clamp(density, 0, 1);
+    if (nextDensity === this.density) return;
+    this.density = nextDensity;
+    this.geometry.setDrawRange(0, Math.floor(this.particleCount * nextDensity));
+  }
+
+  setHauntedFlow(enabled: boolean) {
+    const nextFlow = enabled ? 1 : 0;
+    if (nextFlow === this.hauntedFlow) return;
+    this.hauntedFlow = nextFlow;
+    this.material.uniforms.uHauntedFlow.value = nextFlow;
   }
 
   setShape(shape: ParticleShape) {

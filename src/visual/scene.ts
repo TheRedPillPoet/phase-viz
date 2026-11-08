@@ -30,7 +30,9 @@ export class VisualizerScene {
   private awakeningScene: AwakeningSceneRenderer;
   private activePostEffect: 'hauntedScene' | 'awakeningScene' | null = null;
   private bassEnergy = 0;
+  private midEnergy = 0;
   private highEnergy = 0;
+  private transientEnergy = 0;
   private sceneParameters: SceneParameterValues = { ...DEFAULT_SCENE_PARAMETERS };
   private fallbackBackgroundColor = new THREE.Color(0x050508);
   private visualizerLayerOrder: VisualizerLayerId[] = [...DEFAULT_3D_LAYER_ORDER];
@@ -101,6 +103,7 @@ export class VisualizerScene {
     this.voidScene = new VoidSceneRenderer();
     this.voidScene.mesh.position.set(0, 0, -(BACKGROUND_PLANE_DISTANCE - 0.2));
     this.camera.add(this.voidScene.mesh);
+    this.camera.add(this.voidScene.vortex);
     this.hauntedScene = new HauntedSceneRenderer(initialWidth, initialHeight);
     this.awakeningScene = new AwakeningSceneRenderer();
     this.awakeningScene.resize(initialWidth, initialHeight);
@@ -324,12 +327,14 @@ export class VisualizerScene {
     this.fallbackBackgroundColor = preset.backgroundColor;
     this.activePostEffect = preset.postEffect ?? null;
     this.hauntedScene.reset();
+    this.voidScene.reset();
     const useMatrixRain = preset.backgroundEffect === 'matrixRain';
     const useVoidScene = preset.backgroundEffect === 'voidScene';
     const useShaderBackground = useMatrixRain || useVoidScene;
     this.backgroundPlane.visible = !useShaderBackground;
     this.matrixRain.mesh.visible = useMatrixRain;
     this.voidScene.mesh.visible = useVoidScene;
+    this.voidScene.vortex.visible = useVoidScene;
     if (!this.backgroundTexture && !useShaderBackground) {
       this.backgroundPlaneMaterial.map = null;
       this.backgroundPlaneMaterial.color.copy(preset.backgroundColor);
@@ -433,7 +438,9 @@ export class VisualizerScene {
     this.time += dt;
     this.sceneParameters = sceneParameters;
     this.bassEnergy = clamp01(bass);
+    this.midEnergy = clamp01(mid);
     this.highEnergy = clamp01(high);
+    this.transientEnergy = clamp01(transient);
     this.matrixRain.update(
       this.time,
       bass,
@@ -443,15 +450,26 @@ export class VisualizerScene {
     );
     this.voidScene.update(
       this.time,
+      dt,
       bass,
-      (mid + high) * 0.5,
-      sceneParameters.voidHorizonGlow,
-      sceneParameters.voidRingVisibility,
-      sceneParameters.voidFovPulse,
+      mid,
+      high,
+      transient,
+      sceneParameters.voidEnergy,
+      sceneParameters.voidParticleDensity,
+      sceneParameters.voidRibbonWeight,
+      sceneParameters.voidMotionSpeed,
+      sceneParameters.voidBassReactivity,
     );
     const bpmFactor = bpm / 120;
 
     if (this.particleSystem) {
+      const hauntedActive = this.activePostEffect === 'hauntedScene';
+      const hauntedDensity = hauntedActive
+        ? sceneParameters.hauntedParticleDensity / 1.5
+        : 1;
+      this.particleSystem.setDensity(hauntedDensity);
+      this.particleSystem.setHauntedFlow(hauntedActive);
       const morphBass = clamp01(bass * this.morphIntensity);
       const morphMid = clamp01(mid * this.morphIntensity);
       const morphHigh = clamp01(high * this.morphIntensity);
@@ -653,9 +671,13 @@ export class VisualizerScene {
         source,
         this.time,
         this.bassEnergy,
-        this.sceneParameters.hauntedGrainOpacity,
-        this.sceneParameters.hauntedChromaticAberration,
-        this.sceneParameters.hauntedTrailDecay,
+        this.midEnergy,
+        this.highEnergy,
+        this.transientEnergy,
+        this.sceneParameters.hauntedWispIntensity,
+        this.sceneParameters.hauntedSpectralBrightness,
+        this.sceneParameters.hauntedAudioReactivity,
+        this.sceneParameters.hauntedTrailPersistence,
       );
     } else if (this.activePostEffect === 'awakeningScene') {
       this.awakeningScene.render(
@@ -721,6 +743,7 @@ export class VisualizerScene {
     this.cameraAngle = 0;
     this.wasDatamoshActive = false;
     this.hauntedScene.reset();
+    this.voidScene.reset();
     const previousTarget = this.renderer.getRenderTarget();
     this.renderer.setRenderTarget(this.rtPrevFrame);
     this.renderer.clear();
@@ -757,7 +780,7 @@ export class VisualizerScene {
   private applyLayerOrder() {
     this.backgroundPlane.renderOrder = this.getLayerRenderOrder('background');
     this.matrixRain.mesh.renderOrder = this.getLayerRenderOrder('background');
-    this.voidScene.mesh.renderOrder = this.getLayerRenderOrder('background');
+    this.voidScene.setRenderOrder(this.getLayerRenderOrder('background'));
 
     if (this.particleSystem) {
       this.particleSystem.points.renderOrder = this.getLayerRenderOrder('particles');

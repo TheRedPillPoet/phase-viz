@@ -29,11 +29,11 @@ export const BRAND = {
   exportLogo: {
     opacity: 0.9,
     maxWidthRatio: {
-      '16:9': 0.42,
-      '9:16': 0.46,
-      '1:1': 0.42,
+      '16:9': 0.84,
+      '9:16': 0.92,
+      '1:1': 0.84,
     },
-    maxHeightRatio: 0.22,
+    maxHeightRatio: 0.44,
     paddingRatio: 0.035,
     topPaddingRatio: {
       '16:9': 0.055,
